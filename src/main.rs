@@ -9,7 +9,15 @@ fn main() -> Result<()> {
     let opts = Opts::parse();
     match opts.cmd {
         SubCommand::Csv(opts) => {
-            process_csv(&opts.input, &opts.output)?;
+            let output = if let Some(output) = opts.output {
+                output
+            } else {
+                format!("output.{}", opts.format)
+            };
+            process_csv(&opts.input, output, opts.format)?;
+        }
+        SubCommand::GenPass(opts) => {
+            println!("Generate password: {:?}", opts);
         }
     }
     Ok(())
