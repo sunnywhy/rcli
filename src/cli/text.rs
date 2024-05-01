@@ -1,9 +1,10 @@
 use std::fmt;
+use std::path::PathBuf;
 use std::str::FromStr;
 
 use clap::Parser;
 
-use super::verify_file;
+use super::{verify_file, verify_path};
 
 #[derive(Debug, Parser)]
 pub enum TextSubCommand {
@@ -11,6 +12,8 @@ pub enum TextSubCommand {
     Sign(TextSignOpts),
     #[command(about = "Verify a signed message")]
     Verify(TextVerifyOpts),
+    #[command(about = "Generate a new key pair")]
+    Generate(TextKeyGenerateOpts),
 }
 
 #[derive(Debug, Parser)]
@@ -33,6 +36,14 @@ pub struct TextVerifyOpts {
     pub format: TextSignFormat,
     #[arg(short, long)]
     pub sig: String,
+}
+
+#[derive(Debug, Parser)]
+pub struct TextKeyGenerateOpts {
+    #[arg(long, default_value = "blake3", value_parser = parse_format)]
+    pub format: TextSignFormat,
+    #[arg(short, long, value_parser = verify_path)]
+    pub output: PathBuf,
 }
 
 #[derive(Debug, Copy, Clone)]

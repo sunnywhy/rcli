@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use clap::Parser;
 
@@ -40,6 +40,15 @@ fn verify_file(filename: &str) -> anyhow::Result<String, &'static str> {
         Ok(filename.into())
     } else {
         Err("Input file does not exist")
+    }
+}
+
+fn verify_path(path: &str) -> anyhow::Result<PathBuf, &'static str> {
+    let p = Path::new(path);
+    if Path::new(path).exists() && p.is_dir() {
+        Ok(path.into())
+    } else {
+        Err("Path does not exist or is not a directory")
     }
 }
 
