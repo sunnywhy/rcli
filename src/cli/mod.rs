@@ -6,13 +6,14 @@ use crate::cli::csv::CsvOpts;
 use crate::cli::genpass::GenPassOpts;
 
 pub use self::{
-    base64::Base64Format, base64::Base64SubCommand, csv::OutputFormat, text::TextSignFormat,
-    text::TextSubCommand,
+    base64::Base64Format, base64::Base64SubCommand, csv::OutputFormat, http::HttpSubCommand,
+    text::TextSignFormat, text::TextSubCommand,
 };
 
 mod base64;
 mod csv;
 mod genpass;
+mod http;
 mod text;
 
 #[derive(Debug, Parser)]
@@ -32,6 +33,8 @@ pub enum SubCommand {
     Base64(Base64SubCommand),
     #[command(subcommand)]
     Text(TextSubCommand),
+    #[command(subcommand)]
+    Http(HttpSubCommand),
 }
 
 fn verify_file(filename: &str) -> anyhow::Result<String, &'static str> {
