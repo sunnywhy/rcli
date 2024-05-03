@@ -3,6 +3,8 @@ use std::str::FromStr;
 
 use clap::Parser;
 
+use crate::{process_decode, process_encode, CmdExecutor};
+
 use super::verify_file;
 
 #[derive(Debug, Parser)]
@@ -33,6 +35,32 @@ pub struct Base64DecodeOpts {
 pub enum Base64Format {
     Standard,
     UrlSafe,
+}
+
+impl CmdExecutor for Base64SubCommand {
+    async fn execute(self) -> anyhow::Result<()> {
+        match self {
+            Base64SubCommand::Encode(opts) => opts.execute().await,
+            Base64SubCommand::Decode(opts) => opts.execute().await,
+        }
+    }
+}
+
+impl CmdExecutor for Base64EncodeOpts {
+    async fn execute(self) -> anyhow::Result<()> {
+        let encoded = process_encode(&self.input, self.format)?;
+        println!("{}", encoded);
+        Ok(())
+    }
+}
+
+impl CmdExecutor for Base64DecodeOpts {
+    async fn execute(self) -> anyhow::Result<()> {
+        let decoded = process_decode(&self.input, self.format)?;
+        let decoded = String::from_utf8(decoded)?;
+        println!("{}", decoded);
+        Ok(())
+    }
 }
 
 fn parse_base64_format(format: &str) -> anyhow::Result<Base64Format, anyhow::Error> {
