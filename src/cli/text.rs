@@ -5,7 +5,10 @@ use std::{fmt, fs};
 use clap::Parser;
 use enum_dispatch::enum_dispatch;
 
-use crate::{process_generate_key, process_text_sign, process_text_verify, CmdExecutor};
+use crate::{
+    process_generate_key, process_text_decrypt, process_text_encrypt, process_text_sign,
+    process_text_verify, CmdExecutor,
+};
 
 use super::{verify_file, verify_path};
 
@@ -18,6 +21,10 @@ pub enum TextSubCommand {
     Verify(TextVerifyOpts),
     #[command(about = "Generate a new key pair")]
     Generate(TextKeyGenerateOpts),
+    #[command(about = "Encrypt a key with chacha20poly1305 and output base64 encoded text")]
+    Encrypt(TextEncryptOpts),
+    #[command(about = "Decrypt a key with chacha20poly1305 from base64 encoded text")]
+    Decrypt(TextDecryptOpts),
 }
 
 #[derive(Debug, Parser)]
@@ -56,6 +63,22 @@ pub enum TextSignFormat {
     Ed25519,
 }
 
+#[derive(Debug, Parser)]
+pub struct TextEncryptOpts {
+    #[arg(short, long, value_parser = verify_file, default_value = "-")]
+    pub input: String,
+    #[arg(short, long, value_parser = verify_file)]
+    pub key: String,
+}
+
+#[derive(Debug, Parser)]
+pub struct TextDecryptOpts {
+    #[arg(short, long, value_parser = verify_file, default_value = "-")]
+    pub input: String,
+    #[arg(short, long, value_parser = verify_file)]
+    pub key: String,
+}
+
 impl CmdExecutor for TextSignOpts {
     async fn execute(self) -> anyhow::Result<()> {
         let signed = process_text_sign(&self.input, &self.key, self.format)?;
@@ -86,6 +109,22 @@ impl CmdExecutor for TextKeyGenerateOpts {
                 fs::write(name.join("ed25519.pk"), &key[1])?;
             }
         }
+        Ok(())
+    }
+}
+
+impl CmdExecutor for TextEncryptOpts {
+    async fn execute(self) -> anyhow::Result<()> {
+        let encrypted = process_text_encrypt(&self.input, &self.key)?;
+        println!("{}", encrypted);
+        Ok(())
+    }
+}
+
+impl CmdExecutor for TextDecryptOpts {
+    async fn execute(self) -> anyhow::Result<()> {
+        let decrypted = process_text_decrypt(&self.input, &self.key)?;
+        println!("{}", decrypted);
         Ok(())
     }
 }

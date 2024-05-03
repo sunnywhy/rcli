@@ -3,6 +3,10 @@ use std::path::Path;
 
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine as _;
+use chacha20poly1305::{
+    aead::{Aead, KeyInit},
+    ChaCha20Poly1305, Key, Nonce,
+};
 use ed25519_dalek::{Signer, SigningKey, Verifier, VerifyingKey};
 use rand::rngs::OsRng;
 
@@ -41,6 +45,11 @@ struct Ed25519Signer {
 
 struct Ed25519Verifier {
     key: VerifyingKey,
+}
+
+struct ChaCha20Poly1305Engine {
+    key: Key,
+    nonce: Nonce,
 }
 
 impl TextSign for Blake3 {
@@ -87,6 +96,13 @@ impl KeyLoader for Blake3 {
 }
 
 impl KeyLoader for Ed25519Signer {
+    fn load(path: impl AsRef<Path>) -> anyhow::Result<Self> {
+        let key = std::fs::read(path)?;
+        Self::try_new(&key)
+    }
+}
+
+impl KeyLoader for ChaCha20Poly1305Engine {
     fn load(path: impl AsRef<Path>) -> anyhow::Result<Self> {
         let key = std::fs::read(path)?;
         Self::try_new(&key)
@@ -153,6 +169,40 @@ impl Ed25519Verifier {
     }
 }
 
+impl ChaCha20Poly1305Engine {
+    pub fn new(key: Key, nonce: Nonce) -> Self {
+        Self { key, nonce }
+    }
+
+    pub fn try_new(key: &[u8]) -> anyhow::Result<Self> {
+        // use the first 12 bytes as nonce
+        let nonce = Nonce::from_slice(&key[..12]);
+        // use the rest as key
+        let key = Key::from_slice(&key[12..44]);
+
+        Ok(Self::new(*key, *nonce))
+    }
+
+    pub fn encrypt(&self, mut reader: impl Read) -> anyhow::Result<String> {
+        let mut buf = Vec::new();
+        reader.read_to_end(&mut buf)?;
+        let cipher = ChaCha20Poly1305::new(&self.key);
+        let ciphertext = cipher.encrypt(&self.nonce, buf.as_ref())?;
+        let encoded = URL_SAFE_NO_PAD.encode(ciphertext);
+        Ok(encoded)
+    }
+
+    pub fn decrypt(&self, mut reader: impl Read) -> anyhow::Result<String> {
+        let mut buf = Vec::new();
+        reader.read_to_end(&mut buf)?;
+        let ciphertext = URL_SAFE_NO_PAD.decode(buf)?;
+        let cipher = ChaCha20Poly1305::new(&self.key);
+        let plaintext = cipher.decrypt(&self.nonce, ciphertext.as_ref())?;
+        let plaintext = String::from_utf8(plaintext)?;
+        Ok(plaintext)
+    }
+}
+
 pub fn process_text_sign(input: &str, key: &str, format: TextSignFormat) -> anyhow::Result<String> {
     let mut reader = get_reader(input)?;
     let signed = match format {
@@ -197,6 +247,20 @@ pub fn process_generate_key(format: TextSignFormat) -> anyhow::Result<Vec<Vec<u8
     }
 }
 
+pub fn process_text_encrypt(input: &str, key: &str) -> anyhow::Result<String> {
+    let engine = ChaCha20Poly1305Engine::load(key)?;
+    let mut reader = get_reader(input)?;
+    let encrypted = engine.encrypt(&mut reader)?;
+    Ok(encrypted)
+}
+
+pub fn process_text_decrypt(input: &str, key: &str) -> anyhow::Result<String> {
+    let engine = ChaCha20Poly1305Engine::load(key)?;
+    let mut reader = get_reader(input)?;
+    let decrypted = engine.decrypt(&mut reader)?;
+    Ok(decrypted)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -217,6 +281,16 @@ mod tests {
         let data = b"hello, world!";
         let signature = signer.sign(&mut &data[..])?;
         assert!(verifier.verify(&data[..], &signature)?);
+        Ok(())
+    }
+
+    #[test]
+    fn test_chacha20poly1305_encrypt_decrypt() -> anyhow::Result<()> {
+        let engine = ChaCha20Poly1305Engine::load("fixtures/chacha20poly1305.txt")?;
+        let data = b"hello, world!";
+        let encrypted = engine.encrypt(&mut &data[..])?;
+        let decrypted = engine.decrypt(&mut encrypted.as_bytes())?;
+        assert_eq!(data, decrypted.as_bytes());
         Ok(())
     }
 }
