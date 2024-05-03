@@ -3,12 +3,14 @@ use std::str::FromStr;
 use std::{fmt, fs};
 
 use clap::Parser;
+use enum_dispatch::enum_dispatch;
 
 use crate::{process_generate_key, process_text_sign, process_text_verify, CmdExecutor};
 
 use super::{verify_file, verify_path};
 
 #[derive(Debug, Parser)]
+#[enum_dispatch(CmdExecutor)]
 pub enum TextSubCommand {
     #[command(about = "Sign a message with a private/shared key")]
     Sign(TextSignOpts),
@@ -52,16 +54,6 @@ pub struct TextKeyGenerateOpts {
 pub enum TextSignFormat {
     Blake3,
     Ed25519,
-}
-
-impl CmdExecutor for TextSubCommand {
-    async fn execute(self) -> anyhow::Result<()> {
-        match self {
-            TextSubCommand::Sign(opts) => opts.execute().await,
-            TextSubCommand::Verify(opts) => opts.execute().await,
-            TextSubCommand::Generate(opts) => opts.execute().await,
-        }
-    }
 }
 
 impl CmdExecutor for TextSignOpts {
