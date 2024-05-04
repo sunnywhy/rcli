@@ -38,24 +38,60 @@ async fn file_handler(
     let p = std::path::Path::new(&state.path).join(path);
     info!("Reading file {:?}", p);
     if !p.exists() {
-        (StatusCode::NOT_FOUND, format!("File not found: {:?}", p))
-    } else {
-        // TODO: handle directory
-        // if it's a directory, return all files/subdirectories as <li><a href="path-to-file">file name</a></li>
-        match tokio::fs::read_to_string(p).await {
+        return (StatusCode::NOT_FOUND, format!("File not found: {:?}", p));
+    }
+
+    if p.is_dir() {
+        return match process_dir(&p).await {
             Ok(content) => {
                 info!("Read {} bytes", content.len());
                 (StatusCode::OK, content)
             }
             Err(e) => {
-                warn!("Error reading file: {:?}", e);
+                warn!("Error reading directory: {:?}", e);
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    format!("Error reading file: {:?}", e),
+                    format!("Error reading directory: {:?}", e),
                 )
             }
+        };
+    }
+
+    match tokio::fs::read_to_string(p).await {
+        Ok(content) => {
+            info!("Read {} bytes", content.len());
+            (StatusCode::OK, content)
+        }
+        Err(e) => {
+            warn!("Error reading file: {:?}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Error reading file: {:?}", e),
+            )
         }
     }
+}
+
+async fn process_dir(p: &std::path::Path) -> anyhow::Result<String> {
+    let mut content = String::new();
+    content.push_str("<html><head><title>Directory listing</title></head><body>");
+    content.push_str("<ul>");
+    let mut entries = tokio::fs::read_dir(p).await?;
+    while let Some(entry) = entries.next_entry().await? {
+        let path = entry.path();
+        let name = entry.file_name();
+        content.push_str("<li>");
+        content.push_str("<a href=\"");
+        content.push_str(&path.to_string_lossy());
+        content.push_str("\">");
+        content.push_str(&name.to_string_lossy());
+        content.push_str("</a>");
+        content.push_str("</li>");
+    }
+
+    content.push_str("</ul>");
+    content.push_str("</body></html>");
+    Ok(content)
 }
 
 #[cfg(test)]
